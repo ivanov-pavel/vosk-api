@@ -73,25 +73,25 @@ RUN cd /opt/kaldi \
 RUN cd /opt/kaldi \
     && git clone https://github.com/alphacep/vosk-api \
     && cd vosk-api/src \
-    && cat > Makefile.windows-static << 'EOF'
-CXX = x86_64-w64-mingw32-g++-posix
-CXXFLAGS = -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32
-LDFLAGS = -static -L/opt/kaldi/local/lib
-LIBS = -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -l:libfst.a -lws2_32 -lpthread
-
-OBJ = kaldi_recognizer.o model.o spoken_entity.o vosk_api.o
-
-libvosk.lib: $(OBJ)
-	$(CXX) -shared -o libvosk.dll -Wl,--out-implib,libvosk.lib $(OBJ) $(LDFLAGS) $(LIBS) -static-libgcc -static-libstdc++
-
-%.o: %.cc
-	$(CXX) $(CXXFLAGS) -c -o $@ $<
-
-clean:
-	rm -f *.o *.dll *.lib
-
-.PHONY: clean
-EOF
+    && printf '%s\n' \
+        'CXX = x86_64-w64-mingw32-g++-posix' \
+        'CXXFLAGS = -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32' \
+        'LDFLAGS = -static -L/opt/kaldi/local/lib' \
+        'LIBS = -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -l:libfst.a -lws2_32 -lpthread' \
+        '' \
+        'OBJ = kaldi_recognizer.o model.o spoken_entity.o vosk_api.o' \
+        '' \
+        'libvosk.lib: $(OBJ)' \
+        '	$(CXX) -shared -o libvosk.dll -Wl,--out-implib,libvosk.lib $(OBJ) $(LDFLAGS) $(LIBS) -static-libgcc -static-libstdc++' \
+        '' \
+        '%.o: %.cc' \
+        '	$(CXX) $(CXXFLAGS) -c -o $@ $<' \
+        '' \
+        'clean:' \
+        '	rm -f *.o *.dll *.lib' \
+        '' \
+        '.PHONY: clean' \
+        > Makefile.windows-static \
     && make -f Makefile.windows-static libvosk.lib
 
 # Copy the Windows static library and headers
@@ -101,5 +101,5 @@ RUN mkdir -p /opt/kaldi/output/{lib,include} \
     && echo "Windows static libvosk.lib build complete"
 
 # Verify the library
-RUN file /opt/kaldi/output/lib/libvosk.lib && \
-    x86_64-w64-mingw32-nm /opt/kaldi/output/lib/libvosk.lib | head -20
+RUN file /opt/kaldi/output/lib/libvosk.lib || echo "file command not available" \
+    && (x86_64-w64-mingw32-nm /opt/kaldi/output/lib/libvosk.lib | head -20 || echo "nm command failed")
