@@ -27,39 +27,79 @@ RUN apt-get update && \
         g++-mingw-w64-x86-64 \
     && rm -rf /var/lib/apt/lists/*
 
+# Build OpenFST as static only for Windows
 RUN mkdir /opt/kaldi \
     && git clone https://github.com/alphacep/openfst \
     && cd openfst \
     && autoreconf -i \
-    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING" \
+    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static" \
+        LDFLAGS="-static" \
         ./configure --prefix=/opt/kaldi/local \
-        --enable-shared --enable-static --with-pic --disable-bin \
+        --disable-shared --enable-static --with-pic --disable-bin \
         --enable-lookahead-fsts --enable-ngram-fsts --host=x86_64-w64-mingw32 \
     && make -j $(nproc) \
     && make install
 
+# Build OpenBLAS as static only for Windows
 RUN cd /opt/kaldi \
     && git clone -b v0.3.20 --single-branch https://github.com/xianyi/OpenBLAS \
     && cd OpenBLAS \
-    && make HOSTCC=gcc BINARY=64 CC=x86_64-w64-mingw32-gcc ONLY_CBLAS=1 DYNAMIC_ARCH=1 TARGET=NEHALEM USE_LOCKING=1 USE_THREAD=0 -j $(nproc) \
+    && make HOSTCC=gcc BINARY=64 CC=x86_64-w64-mingw32-gcc FC=x86_64-w64-mingw32-gfortran ONLY_CBLAS=1 DYNAMIC_ARCH=1 TARGET=NEHALEM USE_LOCKING=1 USE_THREAD=0 -j $(nproc) \
     && make PREFIX=/opt/kaldi/local install
 
+# Build CLAPACK as static for Windows
 RUN cd /opt/kaldi \
     && git clone -b v3.2.1  --single-branch https://github.com/alphacep/clapack \
     && mkdir clapack/BUILD \
     && cd clapack/BUILD \
-    && cmake -DCMAKE_C_COMPILER_TARGET=x86_64-w64-mingw32 -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc-posix -DCMAKE_SYSTEM_NAME=Windows -DCMAKE_CROSSCOMPILING=True .. \
+    && cmake -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc-posix -DCMAKE_SYSTEM_NAME=Windows -DBUILD_SHARED_LIBS=OFF .. \
     && make -C F2CLIBS/libf2c \
     && make -C BLAS \
     && make -C SRC \
-    && find . -name *.a -exec cp {} /opt/kaldi/local/lib \;
+    && find . -name "*.a" -exec cp {} /opt/kaldi/local/lib \;
 
+# Build Kaldi with static linkage for Windows
 RUN cd /opt/kaldi \
     && git clone -b vosk-android --single-branch https://github.com/alphacep/kaldi \
     && cd kaldi/src \
-    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING" ./configure --shared --mingw=yes --use-cuda=no \
+    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static" LDFLAGS="-static" ./configure --static --mingw=yes --use-cuda=no \
         --mathlib=OPENBLAS_CLAPACK \
         --host=x86_64-w64-mingw32 --openblas-clapack-root=/opt/kaldi/local \
         --fst-root=/opt/kaldi/local --fst-version=1.8.0 \
     && make depend -j \
     && make -j $(nproc) online2 rnnlm
+
+# Build vosk-api as Windows static library (.lib)
+RUN cd /opt/kaldi \
+    && git clone https://github.com/alphacep/vosk-api \
+    && cd vosk-api/src \
+    && cat > Makefile.windows-static << 'EOF'
+CXX = x86_64-w64-mingw32-g++-posix
+CXXFLAGS = -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32
+LDFLAGS = -static -L/opt/kaldi/local/lib
+LIBS = -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -l:libfst.a -lws2_32 -lpthread
+
+OBJ = kaldi_recognizer.o model.o spoken_entity.o vosk_api.o
+
+libvosk.lib: $(OBJ)
+	$(CXX) -shared -o libvosk.dll -Wl,--out-implib,libvosk.lib $(OBJ) $(LDFLAGS) $(LIBS) -static-libgcc -static-libstdc++
+
+%.o: %.cc
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+clean:
+	rm -f *.o *.dll *.lib
+
+.PHONY: clean
+EOF
+    && make -f Makefile.windows-static libvosk.lib
+
+# Copy the Windows static library and headers
+RUN mkdir -p /opt/kaldi/output/{lib,include} \
+    && cp /opt/kaldi/vosk-api/src/libvosk.lib /opt/kaldi/output/lib/ \
+    && cp /opt/kaldi/vosk-api/src/*.h /opt/kaldi/output/include/ \
+    && echo "Windows static libvosk.lib build complete"
+
+# Verify the library
+RUN file /opt/kaldi/output/lib/libvosk.lib && \
+    x86_64-w64-mingw32-nm /opt/kaldi/output/lib/libvosk.lib | head -20
