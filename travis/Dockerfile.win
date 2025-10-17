@@ -75,13 +75,13 @@ RUN cd /opt/kaldi \
     && cd vosk-api/src \
     # First check what files actually exist
     && ls -la \
-    # Compile the source files directly
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o kaldi_recognizer.o kaldi_recognizer.cpp \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cpp \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o spoken_entity.o spoken_entity.cpp \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cpp \
+    # Compile the actual source files that exist
+    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o recognizer.o recognizer.cc \
+    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cc \
+    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cc \
+    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o language_model.o language_model.cc \
     # Create the shared library and import library
-    && x86_64-w64-mingw32-g++-posix -shared -o libvosk.dll kaldi_recognizer.o model.o spoken_entity.o vosk_api.o \
+    && x86_64-w64-mingw32-g++-posix -shared -o libvosk.dll recognizer.o model.o vosk_api.o language_model.o \
         -static -L/opt/kaldi/local/lib \
         -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm \
         -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 \
