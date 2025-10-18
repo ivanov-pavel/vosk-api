@@ -1,11 +1,30 @@
-# Stage 1: Build dependencies
-FROM debian:11 as deps
+FROM debian:11
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        ca-certificates g++ bzip2 unzip make wget git python3 \
-        zlib1g-dev cmake xz-utils automake autoconf libtool \
-        pkg-config g++-mingw-w64-x86-64 \
+        ca-certificates \
+        g++ \
+        bzip2 \
+        unzip \
+        make \
+        wget \
+        git \
+        python3 \
+        python3-pip \
+        python3-wheel \
+        python3-setuptools \
+        python3-cffi \
+        zlib1g-dev \
+        patch \
+        cmake \
+        xz-utils \
+        automake \
+        autoconf \
+        libtool \
+        pkg-config \
+        sudo \
+        g++-mingw-w64-i686 \
+        g++-mingw-w64-x86-64 \
     && rm -rf /var/lib/apt/lists/*
 
 # Build OpenFST
@@ -50,24 +69,46 @@ RUN cd /opt/kaldi \
     && make depend -j \
     && make -j $(nproc) online2 rnnlm
 
-# Stage 2: Build vosk-api (changes frequently)
-FROM deps as builder
-
+# Build vosk-api with correct library paths
 RUN cd /opt/kaldi \
     && git clone https://github.com/alphacep/vosk-api \
     && cd vosk-api/src \
+    # First, let's find where the Kaldi libraries actually are
+    && echo "=== Finding Kaldi libraries ===" \
+    && find /opt/kaldi/kaldi/src -name "*.a" | head -20 \
+    && echo "=== Finding OpenFST libraries ===" \
+    && find /opt/kaldi/local -name "*.a" | head -20 \
+    # Compile the source files
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o recognizer.o recognizer.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o language_model.o language_model.cc \
+    # Link with correct library paths
     && x86_64-w64-mingw32-g++-posix -shared -o libvosk.dll recognizer.o model.o vosk_api.o language_model.o \
-        -static -L/opt/kaldi/local/lib \
+        -static \
+        -L/opt/kaldi/local/lib \
+        -L/opt/kaldi/kaldi/src/online2 \
+        -L/opt/kaldi/kaldi/src/rnnlm \
+        -L/opt/kaldi/kaldi/src/decoder \
+        -L/opt/kaldi/kaldi/src/feat \
+        -L/opt/kaldi/kaldi/src/lat \
+        -L/opt/kaldi/kaldi/src/fstext \
+        -L/opt/kaldi/kaldi/src/hmm \
+        -L/opt/kaldi/kaldi/src/transform \
+        -L/opt/kaldi/kaldi/src/gmm \
+        -L/opt/kaldi/kaldi/src/tree \
+        -L/opt/kaldi/kaldi/src/util \
+        -L/opt/kaldi/kaldi/src/matrix \
+        -L/opt/kaldi/kaldi/src/base \
+        -L/opt/kaldi/kaldi/src/nnet3 \
+        -L/opt/kaldi/kaldi/src/chain \
         -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm \
         -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 \
-        -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -l:libfst.a -lws2_32 -lpthread \
+        -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -lws2_32 -lpthread \
         -static-libgcc -static-libstdc++ -Wl,--out-implib,libvosk.lib
 
-# Stage 3: Final output
-FROM scratch as output
-COPY --from=builder /opt/kaldi/vosk-api/src/libvosk.lib /
-COPY --from=builder /opt/kaldi/vosk-api/src/*.h /
+# Copy the Windows static library and headers
+RUN mkdir -p /opt/kaldi/output/{lib,include} \
+    && cp /opt/kaldi/vosk-api/src/libvosk.lib /opt/kaldi/output/lib/ \
+    && cp /opt/kaldi/vosk-api/src/*.h /opt/kaldi/output/include/ \
+    && echo "Windows static libvosk.lib build complete"
