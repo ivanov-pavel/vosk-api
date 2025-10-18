@@ -17,7 +17,7 @@ jobs:
 
       - name: Build vosk.lib inside Docker
         run: |
-          docker build -t vosk-win64-static -f Dockerfile.win .
+          docker build -t vosk-win64-static -f travis/Dockerfile.win .
 
       - name: Extract vosk.lib
         run: |
