@@ -27,12 +27,12 @@ RUN apt-get update && \
         g++-mingw-w64-x86-64 \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OpenFST as static only for Windows
+# Build OpenFST as static only for Windows with C++17
 RUN mkdir /opt/kaldi \
     && git clone https://github.com/alphacep/openfst \
     && cd openfst \
     && autoreconf -i \
-    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static" \
+    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -std=c++17" \
         LDFLAGS="-static" \
         ./configure --prefix=/opt/kaldi/local \
         --disable-shared --enable-static --with-pic --disable-bin \
@@ -58,28 +58,26 @@ RUN cd /opt/kaldi \
     && make -C SRC \
     && find . -name "*.a" -exec cp {} /opt/kaldi/local/lib \;
 
-# Build Kaldi with static linkage for Windows
+# Build Kaldi with static linkage for Windows with C++17
 RUN cd /opt/kaldi \
     && git clone -b vosk-android --single-branch https://github.com/alphacep/kaldi \
     && cd kaldi/src \
-    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static" LDFLAGS="-static" ./configure --static --mingw=yes --use-cuda=no \
+    && CXX=x86_64-w64-mingw32-g++-posix CXXFLAGS="-O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -std=c++17" LDFLAGS="-static" ./configure --static --mingw=yes --use-cuda=no \
         --mathlib=OPENBLAS_CLAPACK \
         --host=x86_64-w64-mingw32 --openblas-clapack-root=/opt/kaldi/local \
         --fst-root=/opt/kaldi/local --fst-version=1.8.0 \
     && make depend -j \
     && make -j $(nproc) online2 rnnlm
 
-# Build vosk-api as Windows static library (.lib)
+# Build vosk-api as Windows static library (.lib) with C++17
 RUN cd /opt/kaldi \
     && git clone https://github.com/alphacep/vosk-api \
     && cd vosk-api/src \
-    # First check what files actually exist
-    && ls -la \
-    # Compile the actual source files that exist
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o recognizer.o recognizer.cc \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cc \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cc \
-    && x86_64-w64-mingw32-g++-posix -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o language_model.o language_model.cc \
+    # Compile with C++17 to match OpenFST
+    && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o recognizer.o recognizer.cc \
+    && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cc \
+    && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cc \
+    && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o language_model.o language_model.cc \
     # Create the shared library and import library
     && x86_64-w64-mingw32-g++-posix -shared -o libvosk.dll recognizer.o model.o vosk_api.o language_model.o \
         -static -L/opt/kaldi/local/lib \
