@@ -13,9 +13,13 @@ env:
 
 jobs:
   build-windows:
+    name: Build Windows Library
+    runs-on: ubuntu-latest
+    
+    steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
+      
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
@@ -29,7 +33,7 @@ jobs:
           
     - name: Make script executable
       run: chmod +x travis/build-docker-win.sh
-
+      
     - name: Run build script with cache
       run: |
         # Set Docker buildkit and cache options
@@ -39,3 +43,10 @@ jobs:
       
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
+      with:
+        name: windows-build-output
+        path: |
+          build/
+          output/
+          libvosk.lib
+        retention-days: 30
