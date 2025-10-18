@@ -39,7 +39,7 @@ RUN git clone --depth=1 https://github.com/alphacep/openfst /tmp/openfst && \
         CXX=$HOST-g++-posix CXXFLAGS="$CXXFLAGS" LDFLAGS="$LDFLAGS" && \
     make -j$(nproc) && make install && rm -rf /tmp/openfst
 
-# ---- Build OpenBLAS (static, USE_THREAD=1 to fix GEMM_MULTITHREAD_THRESHOLD) ----
+# ---- Build OpenBLAS (static, USE_THREAD=1, MAX_CPU_NUMBER=64) ----
 RUN git clone -b v0.3.24 --single-branch https://github.com/xianyi/OpenBLAS /tmp/OpenBLAS && \
     cd /tmp/OpenBLAS && \
     make BINARY=64 \
@@ -49,7 +49,8 @@ RUN git clone -b v0.3.24 --single-branch https://github.com/xianyi/OpenBLAS /tmp
          USE_LOCKING=1 \
          DYNAMIC_ARCH=1 \
          TARGET=NEHALEM \
-         NO_SHARED=1 -j$(nproc) && \
+         NO_SHARED=1 \
+         MAX_CPU_NUMBER=64 -j$(nproc) && \
     make PREFIX=$PREFIX install && rm -rf /tmp/OpenBLAS
 
 # ---- Build CLAPACK (static) ----
