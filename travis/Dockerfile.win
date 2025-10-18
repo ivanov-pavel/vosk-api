@@ -69,43 +69,46 @@ RUN cd /opt/kaldi \
     && make depend -j \
     && make -j $(nproc) online2 rnnlm
 
-# Build vosk-api with correct library paths
+# Build vosk-api using the correct library linking syntax
 RUN cd /opt/kaldi \
     && git clone https://github.com/alphacep/vosk-api \
     && cd vosk-api/src \
-    # First, let's find where the Kaldi libraries actually are
-    && echo "=== Finding Kaldi libraries ===" \
-    && find /opt/kaldi/kaldi/src -name "*.a" | head -20 \
-    && echo "=== Finding OpenFST libraries ===" \
-    && find /opt/kaldi/local -name "*.a" | head -20 \
     # Compile the source files
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o recognizer.o recognizer.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o model.o model.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o vosk_api.o vosk_api.cc \
     && x86_64-w64-mingw32-g++-posix -std=c++17 -O3 -ftree-vectorize -DFST_NO_DYNAMIC_LINKING -static -I/opt/kaldi/local/include -I/opt/kaldi/kaldi/src -D_USE_MATH_DEFINES -DWIN32 -c -o language_model.o language_model.cc \
-    # Link with correct library paths
+    # Link using the correct syntax for non-standard library names
     && x86_64-w64-mingw32-g++-posix -shared -o libvosk.dll recognizer.o model.o vosk_api.o language_model.o \
         -static \
         -L/opt/kaldi/local/lib \
-        -L/opt/kaldi/kaldi/src/online2 \
-        -L/opt/kaldi/kaldi/src/rnnlm \
-        -L/opt/kaldi/kaldi/src/decoder \
-        -L/opt/kaldi/kaldi/src/feat \
-        -L/opt/kaldi/kaldi/src/lat \
-        -L/opt/kaldi/kaldi/src/fstext \
-        -L/opt/kaldi/kaldi/src/hmm \
-        -L/opt/kaldi/kaldi/src/transform \
-        -L/opt/kaldi/kaldi/src/gmm \
-        -L/opt/kaldi/kaldi/src/tree \
-        -L/opt/kaldi/kaldi/src/util \
-        -L/opt/kaldi/kaldi/src/matrix \
-        -L/opt/kaldi/kaldi/src/base \
-        -L/opt/kaldi/kaldi/src/nnet3 \
-        -L/opt/kaldi/kaldi/src/chain \
-        -lkaldi-online2 -lkaldi-rnnlm -lkaldi-decoder -lkaldi-feat -lkaldi-lat -lkaldi-fstext -lkaldi-hmm \
-        -lkaldi-transform -lkaldi-gmm -lkaldi-tree -lkaldi-util -lkaldi-matrix -lkaldi-base -lkaldi-nnet3 \
-        -lkaldi-chain -lopenblas -lclapack -lf2c -lfst -lfstngram -lfstlookahead -lws2_32 -lpthread \
-        -static-libgcc -static-libstdc++ -Wl,--out-implib,libvosk.lib
+        -L/opt/kaldi/kaldi/src \
+        -l:kaldi-online2.a \
+        -l:kaldi-rnnlm.a \
+        -l:kaldi-decoder.a \
+        -l:kaldi-feat.a \
+        -l:kaldi-lat.a \
+        -l:kaldi-fstext.a \
+        -l:kaldi-hmm.a \
+        -l:kaldi-transform.a \
+        -l:kaldi-gmm.a \
+        -l:kaldi-tree.a \
+        -l:kaldi-util.a \
+        -l:kaldi-matrix.a \
+        -l:kaldi-base.a \
+        -l:kaldi-nnet3.a \
+        -l:kaldi-chain.a \
+        -lopenblas \
+        -lclapack \
+        -lf2c \
+        -lfst \
+        -lfstngram \
+        -lfstlookahead \
+        -lws2_32 \
+        -lpthread \
+        -static-libgcc \
+        -static-libstdc++ \
+        -Wl,--out-implib,libvosk.lib
 
 # Copy the Windows static library and headers
 RUN mkdir -p /opt/kaldi/output/{lib,include} \
