@@ -67,14 +67,15 @@ RUN git clone -b v3.2.1 --single-branch https://github.com/alphacep/clapack /tmp
 RUN git clone -b vosk-android --single-branch https://github.com/alphacep/kaldi /opt/kaldi/kaldi && \
     cd /opt/kaldi/kaldi/src && \
     CXX=$HOST-g++-posix ./configure \
-        --shared=no \
+        --static \
         --use-cuda=no \
         --mingw=yes \
         --mathlib=OPENBLAS_CLAPACK \
         --host=$HOST \
         --openblas-clapack-root=$PREFIX \
         --fst-root=$PREFIX \
-        --fst-version=1.8.0 && \
+        --fst-version=1.8.0 \
+        --static-fst && \
     make depend -j$(nproc) && \
     make -j$(nproc) online2 rnnlm
 
